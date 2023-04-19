@@ -1,0 +1,141 @@
+<html lang="en">
+
+<head>
+  <!-- <script src="https://www.jsdelivr.com/package/npm/chart.js"></script>
+       -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+
+  <div class="container">
+    <br>
+
+
+    <div class="row">
+      <div class="col-md-1"></div>
+      <div class="col-md-10">
+        <canvas id="myChart"></canvas>
+      </div>
+      <div class="col-md-1"></div>
+    </div>
+    <br>
+
+
+    <div class="row">
+      <div class="col-md-2">
+        <!-- <div class="col-md-20">
+        <button type="button" class="btn btn-success btn-md" onclick="toggleChart();">Toggle Chart </button>
+      </div> -->
+
+        <div class="col-md-20">
+          <button type="button" class="btn btn-primary btn-md" onclick="produceEvents();">Produce Events </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- <div class="w-full mt-10">
+            <canvas id="myChart"></canvas>
+        </div> -->
+  <script>
+    const ctx = document.getElementById("myChart");
+    var data =
+
+    {
+      labels: ["Apple", "Pear", "Mango", "Banana", "Kiwi", "Orange"],
+      datasets: [
+        {
+          label: "Inventory",
+          data: [25, 200, 100, 76, 23, 33],
+          backgroundColor: [
+            "rgba(255, 99, 132, 0.2)",
+            "rgba(54, 162, 235, 0.2)",
+            "rgba(255, 206, 86, 0.2)",
+            "rgba(75, 192, 192, 0.2)",
+            "rgba(153, 102, 255, 0.2)",
+            "rgba(255, 159, 64, 0.2)",
+          ],
+          borderColor: [
+            "rgba(255, 99, 132, 1)",
+            "rgba(54, 162, 235, 1)",
+            "rgba(255, 206, 86, 1)",
+            "rgba(75, 192, 192, 1)",
+            "rgba(153, 102, 255, 1)",
+            "rgba(255, 159, 64, 1)",
+          ],
+          borderWidth: 1,
+        },
+      ],
+    }
+
+    var options = {
+      scales: {
+        y: {
+          beginAtZero: true,
+        },
+      },
+    };
+    var chartType = 'bar';
+    var myChart;
+    // const myChart = new Chart(ctx,data);
+    init()
+    //webSocket = new WebSocket("ws://localhost:3000/foo");
+    webSocket = new WebSocket("wss://eda-consumer-ms-ws-ep-svc-dev-exp-module4.apps.veda-rhodalab1.1vr5.s1.devshift.org/foo");
+    //("ws://localhost:3000/foo");
+
+    //   webSocket.addEventListener("message", (event) => {
+    //     console.log("Message from server ", event.data);
+    //     });
+
+    webSocket.onmessage = function (message) {
+
+
+      const data = message.data;
+      const dataObj = JSON.parse(data);
+
+      console.log("new message from server", JSON.parse(data))
+      const dataArray = Object.values(dataObj.data);
+
+      const fruitnameIndex = myChart.data.labels.indexOf(dataObj.data.fruit);
+      console.log("fruitname index ", fruitnameIndex, " fruitname ", dataObj.data.fruit);
+      if (fruitnameIndex >= 0) {
+
+        console.log("data", dataArray);
+        index = dataArray[0] - 1;
+        newqty = myChart.data.datasets[0].data[fruitnameIndex] + dataObj.data.qty;
+
+        console.log("new qty", newqty);
+        console.log("qunaties", myChart.data.datasets[0].data)
+        myChart.data.datasets[0].data[fruitnameIndex] = newqty;
+        myChart.update();
+      } else {
+
+        console.log("invaid fruit");
+      }
+    };
+    function init() {
+      myChart = new Chart(ctx, {
+        type: chartType,
+        data: data,
+        options: options
+      });
+    }
+    function toggleChart() {
+      myChart.destroy();
+      this.chartType = (this.chartType == 'bar') ? 'line' : 'bar';
+      init();
+    }
+
+    function produceEvents() {
+      fetch('https://eda-consumer-ms-ws-ep-svc-dev-exp-module4.apps.veda-rhodalab1.1vr5.s1.devshift.org/produce')
+        .then(res => res.json())
+        .then(res => {
+          console.log(res);
+        })
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,39 @@
+oc new-project user23-devexp-module4
+
+cat << EOF | oc apply  -f -
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+    name: user23-devexp-topic
+    labels:
+         strimzi.io/cluster: crdb-cluster
+    
+spec:
+    config:
+        retention.ms: 604800000
+        segment.bytes: 1073741824
+    partitions: 1
+    replicas: 3
+    topicName: user23-devexp-topic
+EOF
+
+sed -i '.bak' 's/eda-consumer-ms-ws-ep-svc-dev-exp-module4\.apps\.veda-rhodalab1\.1vr5\.s1\.devshift\.org/eda-consumer-ms-ws-ep-svc-user23-devexp-module4\.apps\.veda-rhodalab1\.1vr5\.s1\.devshift\.org/g' test.html
+
+tkn pipeline start build-and-deploy-ms \
+    -w name=shared-workspace,volumeClaimTemplateFile=pipelines/pipelinepvc.yaml \
+    -p deployment-name-p=eda-producer-ms-ep \
+    -p deployment-name-c=eda-consumer-ms-ep \
+    -p git-url=https://gitearhsummit2023-gitea.apps.veda-rhodalab1.1vr5.s1.devshift.org/user25/module4-lab2.git \
+    -p IMAGE-P=image-registry.openshift-image-registry.svc:5000/user23-devexp-module4/eda-ms-producer \
+    -p IMAGE-C=image-registry.openshift-image-registry.svc:5000/user23-devexp-module4/eda-ms-consumer \
+    -p KAFKA_BROKER='crdb-cluster-kafka-bootstrap.crdb-kafka.svc.cluster.local:9092' \
+    -p KAFKA_GROUP_ID=user23-groupid \
+    -p KAFKA_TOPIC=user23-devexp-topic \
+    -p KAFKA_CLIENT_ID=user23-clientid \
+    --use-param-defaults          
+
+
+oc create route edge --service=eda-consumer-ms-ep-svc
+
+oc create route edge --service= eda-producer-ms-ep-svc
+

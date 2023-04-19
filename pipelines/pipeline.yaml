@@ -1,0 +1,150 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-deploy-ms
+spec:
+  params:
+    - description: name of the producer deployment to be patched
+      name: deployment-name-p
+      type: string
+    - description: name of the consumer deployment to be patched
+      name: deployment-name-c
+      type: string
+    - description: url of the git repo for the code of deployment
+      name: git-url
+      type: string
+    - default: main
+      description: revision to be used from repo of the code for deployment
+      name: git-revision
+      type: string
+    - description: consumer image to be build from the code
+      name: IMAGE-C
+      type: string
+    - description: producer image to be build from the code
+      name: IMAGE-P
+      type: string
+    - description: KAFKA Broker
+      name: KAFKA_BROKER
+      type: string
+    - description: KAFKA Topic group
+      name: KAFKA_GROUP_ID
+      type: string
+    - description: KAFKA Topic
+      name: KAFKA_TOPIC
+      type: string
+    - description: KAFKA Client Id 
+      name: KAFKA_CLIENT_ID
+      type: string
+      
+  tasks:
+    - name: fetch-repository
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: subdirectory
+          value: ''
+        - name: deleteExisting
+          value: 'true'
+        - name: revision
+          value: $(params.git-revision)
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: create-cm
+      params:
+        - name: KAFKA_BROKER
+          value: $(params.KAFKA_BROKER)
+        - name: KAFKA_GROUP_ID
+          value: $(params.KAFKA_GROUP_ID)
+        - name: KAFKA_TOPIC
+          value: $(params.KAFKA_TOPIC)
+        - name: KAFKA_CLIENT_ID
+          value: $(params.KAFKA_CLIENT_ID)
+          
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: create-cm
+    - name: build-producer-image
+      params:
+       
+        - name: CONTEXT
+          value: producer
+        - name: IMAGE
+          value: $(params.IMAGE-P)
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: apply-producer-manifests
+      params:
+        - name: manifest_dir
+          value: producer/k8s
+      runAfter:
+        - build-producer-image
+      taskRef:
+        kind: Task
+        name: apply-manifests
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: update-producer-deployment
+      params:
+        - name: deployment
+          value: $(params.deployment-name-p)
+        - name: IMAGE
+          value: $(params.IMAGE-P)
+      runAfter:
+        - apply-producer-manifests
+      taskRef:
+        kind: Task
+        name: update-deployment
+    - name: build-consumer-image
+      params:
+       
+        - name: CONTEXT
+          value: consumer
+        - name: IMAGE
+          value: $(params.IMAGE-C)
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: ClusterTask
+        name: buildah
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: apply-consumer-manifests
+      params:
+        - name: manifest_dir
+          value: consumer/k8s
+      runAfter:
+        - build-consumer-image
+      taskRef:
+        kind: Task
+        name: apply-manifests
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+    - name: update-consumer-deployment
+      params:
+        - name: deployment
+          value: $(params.deployment-name-c)
+        - name: IMAGE
+          value: $(params.IMAGE-C)
+      runAfter:
+        - apply-consumer-manifests
+      taskRef:
+        kind: Task
+        name: update-deployment
+ 
+  workspaces:
+    - name: shared-workspace

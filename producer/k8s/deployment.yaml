@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: eda-producer-ms-ep
+  
+  name: eda-producer-ms-ep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eda-producer-ms-ep
+  template:
+    metadata:
+      labels:
+        app: eda-producer-ms-ep
+    spec:
+      containers:
+        - image: quay.io/openshift-pipeline/eda-consumer-ms-ws-ep:latest
+          imagePullPolicy: Always
+          name: eda-producer-ms-ep
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: KAFKA_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config-cm
+                  key: KAFKA_TOPIC
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config-cm
+                  key: KAFKA_BROKER
+            - name: KAFKA_GROUP_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config-cm
+                  key: KAFKA_GROUP_ID
+            - name: KAFKA_CLIENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-config-cm
+                  key: KAFKA_CLIENT_ID
+
+
+              

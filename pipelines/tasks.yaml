@@ -1,0 +1,139 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: apply-manifests
+spec:
+  params:
+    - default: k8s
+      description: The directory in source that contains yaml manifests
+      name: manifest_dir
+      type: string
+  steps:
+    - args:
+        - |-
+          echo Applying manifests in $(inputs.params.manifest_dir) directory
+          oc apply -f $(inputs.params.manifest_dir)
+          echo -----------------------------------
+      command:
+        - /bin/bash
+        - '-c'
+      image: 'image-registry.openshift-image-registry.svc:5000/openshift/cli:latest'
+      name: apply
+      resources: {}
+      workingDir: /workspace/source
+  workspaces:
+    - name: source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-deployment 
+spec:
+  params:
+    - description: The name of the deployment patch the image
+      name: deployment
+      type: string
+    - description: Location of image to be patched with
+      name: IMAGE
+      type: string
+    - default: KAFKA_BROKER
+      description: The KAFKA_BROKER to which your app connect to
+      name: KAFKA_BROKER
+      type: string
+    - default: KAFKA_GROUP_ID
+      description: The KAFKA_GROUP_ID which a topic belongs to
+      name: KAFKA_GROUP_ID
+      type: string
+    - default: KAFKA_TOPIC
+      description: The KAFKA_TOPIC which your ms listens to
+      name: KAFKA_TOPIC
+      type: string
+  steps:
+    - args:
+        - >-
+          oc patch deployment $(inputs.params.deployment)
+          --patch='{"spec":{"template":{"spec":{
+            "containers":[{
+              "name": "$(inputs.params.deployment)",
+              "image":"$(inputs.params.IMAGE):latest"
+            }]
+          }}}}'
+
+
+          # issue: https://issues.redhat.com/browse/SRVKP-2387
+
+          # images are deployed with tag. on rebuild of the image tags are not
+          updated, hence redeploy is not happening
+
+          # as a workaround update a label in template, which triggers redeploy
+          pods
+
+          # target label: "spec.template.metadata.labels.patched_at"
+
+          # NOTE: this workaround works only if the pod spec has
+          imagePullPolicy: Always
+
+          patched_at_timestamp=`date +%s`
+
+          oc patch deployment $(inputs.params.deployment)
+          --patch='{"spec":{"template":{"metadata":{
+            "labels":{
+              "patched_at": '\"$patched_at_timestamp\"'
+            }
+          }}}}'
+      command:
+        - /bin/bash
+        - '-c'
+      image: 'image-registry.openshift-image-registry.svc:5000/openshift/cli:latest'
+      name: patch
+      resources: {}
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: create-cm
+spec:
+  params:
+    - default: KAFKA_BROKER
+      description: The KAFKA_BROKER to which your app connect to
+      name: KAFKA_BROKER
+      type: string
+    - default: KAFKA_GROUP_ID
+      description: The KAFKA_GROUP_ID which a topic belongs to
+      name: KAFKA_GROUP_ID
+      type: string
+    - default: KAFKA_TOPIC
+      description: The KAFKA_TOPIC which your ms listens to
+      name: KAFKA_TOPIC
+      type: string
+    - default: KAFKA_CLIENT_ID
+      description: The KAFKA_CLIENT_ID which for a consumer 
+      name: KAFKA_CLIENT_ID
+      type: string
+  steps:
+    - image: 'image-registry.openshift-image-registry.svc:5000/openshift/cli:latest'
+      name: cmcreate
+      resources: {}
+      script: |
+        #!/bin/bash
+        echo "---- Create CM if not exist! ----"
+        oc get "cm/kafka-config-cm" > /dev/null 2>&1
+        if [ "$?" == "0" ]; then
+         echo " cm/kafka-config-cm exists deleting it before recreating"
+         oc delete cm/kafka-config-cm 
+        fi 
+        echo "KAFKA_BROKER param value $(params.KAFKA_BROKER)"
+
+        cat << EOF | oc apply -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name:  kafka-config-cm
+          data:
+            KAFKA_BROKER: $(params.KAFKA_BROKER)
+            KAFKA_GROUP_ID: $(params.KAFKA_GROUP_ID)
+            KAFKA_TOPIC: $(params.KAFKA_TOPIC)
+            KAFKA_CLIENT_ID: $(params.KAFKA_CLIENT_ID)
+        EOF
+
+
