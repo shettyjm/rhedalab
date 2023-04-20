@@ -82,7 +82,7 @@
     // const myChart = new Chart(ctx,data);
     init()
     //webSocket = new WebSocket("ws://localhost:3000/foo");
-    webSocket = new WebSocket("wss://eda-consumer-ms-ws-ep-svc-user23-devexp-module4.apps.veda-rhodalab1.1vr5.s1.devshift.org/foo");
+    webSocket = new WebSocket("wss://replacemewithproducerurl/foo");
     //("ws://localhost:3000/foo");
 
     //   webSocket.addEventListener("message", (event) => {
@@ -129,7 +129,7 @@
     }
 
     function produceEvents() {
-      fetch('https://eda-consumer-ms-ws-ep-svc-user23-devexp-module4.apps.veda-rhodalab1.1vr5.s1.devshift.org/produce')
+      fetch('https://replacemewithproducerurl/produce')
         .then(res => res.json())
         .then(res => {
           console.log(res);
